@@ -1,0 +1,8 @@
+name = Custom Webform UI tweaks
+description = Provides new Webform UI tab for users with the appropriate permissions
+core = 7.x
+package = Compucorp
+
+dependencies[] = form_builder
+dependencies[] = webform
+dependencies[] = webform_civicrm

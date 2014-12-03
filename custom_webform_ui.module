@@ -1,0 +1,195 @@
+<?php
+
+/**
+ * Alter js and set the weight to some high number to make sure the js alteration runs in the end
+ */
+function custom_webform_ui_js_alter(&$js) {
+    
+    $js[0]['weight'] = 100;
+    
+}
+
+/**
+ * JS alter custom javascript
+ */
+function custom_webform_ui_js_modify() {
+    
+    drupal_add_js("
+        if (Drupal && Drupal.formBuilder && Drupal.formBuilder.addHover !== 'undefined') {
+            
+            Drupal.formBuilder.addHover = function() {
+                // Do not add hover effect while dragging over other fields.
+                if (!Drupal.formBuilder.activeDragUi && !Drupal.formBuilder.mousePressed) {
+                    if (jQuery(this).find('div.form-builder-hover').length == 0) {
+
+                        var array = [];
+                        array['input'] = 1;
+                        array['textarea'] = 1;
+
+                        // Default is show hover
+                        var search = -1;
+
+                        for (var p in array) {
+                        
+                            // Check the property name -> if it includes civicrm -> don't add the hover
+                            var input_name = jQuery(this).find(p).prop('name');
+
+                            if (input_name !== undefined) {
+
+                                var input_field = input_name.split('[');
+
+                                if(input_field[1] === undefined ) {
+                                    var input = input_name;
+                                }
+                                else {
+                                    var input = input_field[1];
+                                }
+
+                                search = input.search('civicrm');
+                            }
+                        }
+
+                        if (search == '-1') {
+                            jQuery(this).addClass('form-builder-hover');
+                        }
+
+                    }
+                }
+            };
+        }
+        
+        if (Drupal && Drupal.formBuilder && Drupal.formBuilder.clickField !== 'undefined') {
+            
+            Drupal.formBuilder.clickField = function(e) {
+                // Allow select lists to be clicked on without opening the edit options.
+                if (jQuery(e.target).is('select')) {
+                  return;
+                }
+
+                var array = [];
+                array['input'] = 1;
+                array['textarea'] = 1;
+
+                // Default is show hover
+                var search = -1;
+
+                for (var p in array) {
+
+                    // Check the property name -> if it includes civicrm -> don't add the hover
+                    var input_name = jQuery(this).find(p).prop('name');
+
+                    if (input_name !== undefined) {
+
+                        var input_field = input_name.split('[');
+
+                        if(input_field[1] === undefined ) {
+                            var input = input_name;
+                        }
+                        else {
+                            var input = input_field[1];
+                        }
+
+                        search = input.search('civicrm');
+                    }
+                }
+
+
+                // Find the first configure link for this field, ensuring we don't get a link
+                // belonging to a nested form element within this element.
+                var wrapper = jQuery(this).parents('.form-builder-wrapper:first');
+                var link = wrapper.find('a.configure').not(wrapper.find('.form-builder-element .form-builder-element a')).get(0);
+
+                if (search == '-1') {
+                    Drupal.formBuilder.editField.apply(link);
+                }
+
+                return false;
+            };
+        }
+    ","inline");
+     
+}
+
+/**
+ * Implements hook_init();
+ */
+function custom_webform_ui_init() {
+    custom_webform_ui_js_modify();
+}
+
+/**
+ * Implements hook_form_alter();
+ */
+function custom_webform_ui_form_alter(&$form, &$form_state, $form_id) {
+    
+    // Change the default Title of the cloned node
+    if ($form_id == 'webform_node_form') {
+        
+        $form['title']['#default_value'] = t('New Survey');
+        
+    }
+}
+
+/**
+ * Implements hook_menu_alter().
+ */
+function custom_webform_ui_menu_alter(&$items) {
+    
+    // Remove the UI as default from this page (set back the old form builder)
+    $items['node/%webform_menu/webform']['page callback'] = 'webform_components_page';
+
+    // Set specific permissions for this page
+    $items['node/%webform_menu/webform']['access callback'] = 'wf_crm_admin_access';
+    $items['node/%webform_menu/webform']['access arguments'] = array(1);
+
+    // Setup custom Webform UI tab  
+    $items['node/%webform_menu/webform_ui'] = array(
+        'title' => 'Webform UI',
+        'page callback' => 'form_builder_webform_components_page',
+        'page arguments' => array(1),
+        'access callback' => 'node_access',
+        'access arguments' => array('update', 1),
+        'file' => module_load_include('inc', 'webform', 'includes/webform.components.inc'),
+        'weight' => 0,
+        'type' => MENU_LOCAL_TASK,
+    );
+  
+}
+
+/**
+ * Remove form builder cache entries when all caches are cleared
+ */
+function custom_webform_ui_flush_caches() {
+    
+    watchdog('flush cache', 'flush');
+    _remove_form_builder_cache();
+
+}
+
+function _remove_form_builder_cache() {
+    
+    $limit = REQUEST_TIME - variable_get('form_builder_timeout', 1);
+    db_delete('form_builder_cache')
+        ->condition('updated', $limit, '<')
+        ->execute();
+    
+}
+
+/**
+ * Implements hook_module_implements_alter()
+ */
+function custom_webform_ui_module_implements_alter(&$implementations, $hook) {
+    
+    if ($hook != 'menu_alter') {
+      return;
+    }
+
+    $module = 'custom_webform_ui';
+    watchdog('menu alter default order', print_r($implementations, TRUE));
+
+    $group = array($module => $implementations[$module]);
+    unset($implementations[$module]);
+    $implementations = $implementations + $group;
+
+    watchdog('menu alter modified order', print_r($implementations, TRUE));
+}
