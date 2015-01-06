@@ -157,6 +157,16 @@ function custom_webform_ui_menu_alter(&$items) {
 }
 
 /**
+ * Implements hook_admin_paths_alter().
+ */
+function custom_webform_ui_admin_paths_alter(&$paths) {
+    
+    // Treat all webform_ui pages as administrative.
+    $paths['node/*/webform_ui'] = TRUE;
+    
+}
+
+/**
  * Remove form builder cache entries when all caches are cleared
  */
 function custom_webform_ui_flush_caches() {
